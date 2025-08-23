@@ -1,0 +1,98 @@
+{
+    "url": "opc.tcp://192.168.0.2:4840/",
+    "machines": [
+        {
+            "name": "Makino V77 - 1000",
+            "variables": {
+                "Status": "ns=1;s=/1000/STATUS",
+                "Moden": "ns=1;s=/1000/MODEN",
+                "Motion": "ns=1;s=/1000/MOTIO",
+                "Spindle": "ns=1;s=/1000/SPSPD",
+                "FeedRate": "ns=1;s=/1000/FEEDR",
+                "Program_num": "ns=1;s=/1000/PGNUM",
+                "Setting_num": "ns=1;s=/1000/STNUM",
+                "Sub_process_num": "ns=1;s=/1000/SUBNU",
+                "Program_id": "ns=1;s=/1000/PRGID"
+            }
+        },
+        {
+            "name": "Yasda 3 - 1001",
+            "variables": {
+                "Status": "ns=1;s=/1001/STATUS",
+                "Moden": "ns=1;s=/1001/MODEN",
+                "Motion": "ns=1;s=/1001/MOTIO",
+                "Program": "ns=1;s=/1001/PRGMN",
+                "Spindle": "ns=1;s=/1001/SPSPD",
+                "FeedRate": "ns=1;s=/1001/FEEDR"
+            }
+        },
+        {
+            "name": "Mitsui Seiki - 1002",
+            "variables": {
+                "Status": "ns=1;s=/1002/STATUS",
+                "Moden": "ns=1;s=/1002/MODEN",
+                "Motion": "ns=1;s=/1002/MOTIO",
+                "Program": "ns=1;s=/1002/PRGMN",
+                "Spindle": "ns=1;s=/1002/SPSPD",
+                "FeedRate": "ns=1;s=/1002/FEEDR"
+            }
+        },
+        {
+            "name": "Quaser 4 - 1005",
+            "variables": {
+                "Status": "ns=1;s=/1005/STATUS",
+                "State_Number": "ns=1;s=/1005/STATN",
+                "Program": "ns=1;s=/1005/PRGMN",
+                "Spindle": "ns=1;s=/1005/SPDSP",
+                "FeedRate": "ns=1;s=/1005/FEEDR"
+            }
+        },
+        {
+            "name": "Wele 3 - 1006",
+            "variables": {
+                "Status": "ns=1;s=/1006/STATUS",
+                "State_Number": "ns=1;s=/1006/STATN",
+                "Program": "ns=1;s=/1006/PRGMN",
+                "Spindle": "ns=1;s=/1006/SPDSP",
+                "FeedRate": "ns=1;s=/1006/FEEDR"
+            }
+        },
+        {
+            "name": "Wele 4 - 1007",
+            "variables": {
+                "Status": "ns=1;s=/1007/STATUS",
+                "State_Number": "ns=1;s=/1007/STATN",
+                "Program": "ns=1;s=/1007/PRGMN",
+                "Spindle": "ns=1;s=/1007/SPDSP",
+                "FeedRate": "ns=1;s=/1007/FEEDR"
+            }
+        },
+        {
+            "name": "Makino F5(1) - 1008",
+            "variables": {
+                "Moden": "ns=1;s=/1008/MODEN",
+                "Motion": "ns=1;s=/1008/MOTIO",
+                "Spindle": "ns=1;s=/1008/SPSPD",
+                "FeedRate": "ns=1;s=/1008/FEEDR"
+            }
+        },
+        {
+            "name": "Makino F5(2) - 1009",
+            "variables": {
+                "Moden": "ns=1;s=/1009/MODEN",
+                "Motion": "ns=1;s=/1009/MOTIO",
+                "Spindle": "ns=1;s=/1009/SPSPD",
+                "FeedRate": "ns=1;s=/1009/FEEDR"
+            }
+        },
+        {
+            "name": "Makino V33 - 1012",
+            "variables": {
+                "Moden": "ns=1;s=/1012/MODEN",
+                "Motion": "ns=1;s=/1012/MOTIO",
+                "Spindle": "ns=1;s=/1012/SPSPD",
+                "FeedRate": "ns=1;s=/1012/FEEDR"
+            }
+        }
+    ]
+}
