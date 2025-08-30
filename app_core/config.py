@@ -99,11 +99,18 @@ MACHINE_DISPLAY_ORDER = [
     "Makino V33 - 1012",
     "Makino F5(1) - 1008",
     "Makino F5(2) - 1009",
+    "Yasda 1 - 1013",
+    "Yasda 2 - 1014",
     "Yasda 3 - 1001",
+    "OKK - 1015",
     "Mitsui Seiki - 1002",
-    "Wele 3 - 1006",
-    "Wele 4 - 1007",
-    "Quaser 4 - 1005", 
+    "HSM800 - 1011",
+    "HPM600 - 1010",
+    "HPM800 - 1003",
+    "P500 - 1004",
+    "Wele 3 - 1007",
+    "Wele 4 - 1006",
+    "Quaser 4 - 1005" 
 ]
 
 # --- Konfigurasi Database PostgreSQL ---

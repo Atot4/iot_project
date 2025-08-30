@@ -43,30 +43,23 @@ def process_program_cycles_from_logs(machine_name: str, logs: list):
     is_running_cycle_active = False
     current_cycle_start_time = None
     program_name_at_cycle_start = None
+    last_running_log_time = None
 
     for index, row in df_log.iterrows():
         log_time = row['datetime']
         log_status = row['status_text']
         log_program_raw = row.get('current_program')
 
-    # Iterasi melalui log menggunakan perulangan for standar dengan indeks untuk lookahead/lookback yang lebih mudah
-    #for i in range(len(df_log)):
-        #row = df_log.iloc[i]
-        #log_time = row['datetime']
-        #log_status = row['status_text']
-        #log_program_raw = row.get('current_program')    
-        
-        # Normalisasi nama program (handle None, NaN, atau string kosong)
-        # Mengubah str(log_program_raw).strip() untuk menghindari 'nan' string.
         if log_program_raw is None or pd.isna(log_program_raw) or (isinstance(log_program_raw, str) and log_program_raw.strip() == ""):
             log_program = "N/A (No Program)"
         else:
             log_program = str(log_program_raw).strip()
 
-        #logger.debug(f"[{machine_name}] Processing log entry: Time={log_time}, Status='{log_status}', Raw Program='{log_program_raw}', Normalized Program='{log_program}'") # Log detail program
-
         # Deteksi awal siklus 'Running'
         if log_status in RUNNING_STATUSES:
+             # Perbarui waktu 'Running' terakhir, baik itu awal siklus atau kelanjutan
+            last_running_log_time = log_time
+
             if not is_running_cycle_active:
                 # Transisi dari non-Running ke Running
                 current_cycle_start_time = log_time
@@ -77,7 +70,9 @@ def process_program_cycles_from_logs(machine_name: str, logs: list):
         else: # log_status is not a RUNNING_STATUS
             if is_running_cycle_active:
                 # Transisi dari Running ke non-Running
-                cycle_end_time = log_time
+                # Gunakan last_running_log_time sebagai waktu akhir
+                cycle_end_time = last_running_log_time
+                
                 duration_seconds = (cycle_end_time - current_cycle_start_time).total_seconds()
 
                 # Convert to milliseconds for robust integer comparison

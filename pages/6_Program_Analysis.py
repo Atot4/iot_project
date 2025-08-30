@@ -12,7 +12,7 @@ import time
 from datetime import date, time as dt_time, timezone
 from dateutil.relativedelta import relativedelta
 from app_core.data_processor import get_mode 
-from app_core.csv_converter import process_raw_csv_data, convert_time_to_seconds
+from app_core.csv_converter import process_raw_csv_data, convert_time_to_seconds, clean_program_name
 
 
 # Menggunakan dt_time untuk menghindari konflik nama
@@ -115,6 +115,8 @@ if not program_logs:
 
 df_program = pd.DataFrame(program_logs)
 
+df_program['program_name'] = df_program['program_name'].apply(clean_program_name)
+
 # --- Gabungkan data program dengan data status log untuk spindle/feedrate (menggunakan modus) ---
 if raw_status_logs:
     df_raw_status = pd.DataFrame(raw_status_logs)
@@ -173,6 +175,9 @@ df_program_summary_actual = df_program.groupby('program_name').agg(
 
 uploaded_file = st.file_uploader("Import Data from CSV", type=['csv'], key="target_csv_uploader")
 
+import io
+import csv
+
 if uploaded_file is not None:
     try:
         st.info("Memproses file CSV yang diunggah...")
@@ -184,6 +189,17 @@ if uploaded_file is not None:
             df_imported_targets_raw = pd.read_csv(uploaded_file, header=2, encoding='cp1252')
         
         df_imported_targets = process_raw_csv_data(df_imported_targets_raw, file_name)
+
+        # Hapus ekstensi yang tidak konsisten dari nama program yang diimpor
+        possible_extensions = ['.NC', '.nc', '.H', '.h']
+
+        # Ubah nama program yang diimpor dari CSV agar konsisten
+        df_imported_targets['program_name'] = df_imported_targets['program_name'].apply(
+            lambda name: next(
+                (name[:-len(ext)] for ext in possible_extensions if name.upper().endswith(ext.upper())),
+                name  # Jika tidak ada ekstensi yang cocok, gunakan nama asli
+            )
+        )
 
         # Update session_state dengan data yang sudah diproses
         st.info("Memperbarui target dari CSV...")
@@ -204,7 +220,6 @@ if uploaded_file is not None:
     except Exception as e:
         st.error(f"Terjadi kesalahan saat membaca atau memproses file CSV: {e}")
         logging.error(f"Error reading CSV: {e}", exc_info=True)
-
 
 # Inisialisasi/perbarui session_state untuk setiap program (sub-program)
 if 'editable_program_data' not in st.session_state or \
@@ -367,8 +382,8 @@ def classify_efficiency(efficiency):
 df_efficiency['efficiency_status'] = df_efficiency['efficiency_percent'].apply(classify_efficiency)
 
 st.markdown("#### Summary of Sub-program Analysis")
-remarks_value = st.session_state.get(f"remarks_{program_name}", "Nilai Remarks belum tersedia.")
-st.write(f"{remarks_value}")
+#remarks_value = st.session_state.get(f"remarks_{program_name}", "Nilai Remarks belum tersedia.")
+#st.write(f"{remarks_value}")
 
 # Buat DataFrame untuk tampilan dengan kolom yang diinginkan
 df_efficiency_display = df_efficiency[[
@@ -461,7 +476,7 @@ all_program_induk_sessions = []
 # --- Konfigurasi Ambang Batas Jeda Sesi (dalam detik) ---
 # Jeda yang lebih pendek dari ini akan dianggap bagian dari sesi yang sama.
 # Sesuaikan nilai ini sesuai dengan definisi "interupsi" Anda.
-SESSION_GAP_THRESHOLD_SECONDS = 300 # Contoh: 5 menit (300 detik).
+SESSION_GAP_THRESHOLD_SECONDS = 900 # Contoh: 5 menit (300 detik).
 
 def get_status_category_for_loss(status):
     if status in IDLE_STATUSES: return 'IDLE'
@@ -482,29 +497,15 @@ for _, row_induk_summary in temp_df_induk_summary.iterrows():
     overall_feed_mode = row_induk_summary['overall_mode_feed_rate']
     overall_running_sum = row_induk_summary['overall_running_duration_sum']
 
-    #st.subheader(f"DEBUG: Memproses Program Induk: {program_main_name}")
-
-    # relevant_logs_from_db2_raw = get_program_report_from_db2(
-    #     selected_machine,
-    #     overall_start_time_induk.date(),
-    #     overall_end_time_induk.date(),
-    #     program_main_name
-    # )
-
-    # --- PERBAIKAN DI SINI: Gunakan fungsi yang di-cache ---
     relevant_logs_from_db2_raw = cached_get_program_report_from_db2(
         selected_machine,
         overall_start_time_induk.date(),
         overall_end_time_induk.date(),
         program_main_name
     )
-    # --- AKHIR PERBAIKAN ---
 
-    #st.write(f"DEBUG: Hasil dari get_program_report_from_db2 untuk {program_main_name}:")
     if relevant_logs_from_db2_raw:
         df_relevant_logs_from_db2 = pd.DataFrame(relevant_logs_from_db2_raw)
-        #st.dataframe(df_relevant_logs_from_db2)
-        #st.write("Kolom di df_relevant_logs_from_db2:", df_relevant_logs_from_db2.columns.tolist())
     else:
         st.info(f"Tidak ada log relevan dari get_program_report_from_db2 untuk {program_main_name}")
 
@@ -518,10 +519,6 @@ for _, row_induk_summary in temp_df_induk_summary.iterrows():
         )
         logs_in_overall_window['status_category'] = logs_in_overall_window['status_text'].apply(get_status_category_for_loss)
         logs_in_overall_window = logs_in_overall_window.sort_values(by='timestamp_log').copy()
-
-        #st.write(f"DEBUG: logs_in_overall_window (setelah parsing & kategorisasi) for {program_main_name}:")
-        #st.dataframe(logs_in_overall_window)
-        #st.write("Kolom di logs_in_overall_window:", logs_in_overall_window.columns.tolist())
 
         if not logs_in_overall_window.empty:
             cols_to_carry = [col for col in logs_in_overall_window.columns if col != 'timestamp_log']
@@ -538,19 +535,18 @@ for _, row_induk_summary in temp_df_induk_summary.iterrows():
             combined_logs_for_induk_calc['duration_segment'] = (combined_logs_for_induk_calc['next_timestamp_log'] - combined_logs_for_induk_calc['timestamp_log']).dt.total_seconds()
             
             combined_logs_for_induk_calc = combined_logs_for_induk_calc.dropna(subset=['next_timestamp_log']).copy()
-
-            #st.write(f"DEBUG: combined_logs_for_induk_calc (setelah segmentasi) for {program_main_name}:")
-            #st.dataframe(combined_logs_for_induk_calc)
-            #st.write("Kolom di combined_logs_for_induk_calc:", combined_logs_for_induk_calc.columns.tolist())
-
-            # --- LOGIKA FINAL DETEKSI SESI & PENCATATAN NOTES ---
+            st.write("Combined_logs_for_induk_calc")
+            st.write(combined_logs_for_induk_calc)
+            
+            # --- PERBAIKAN LOGIKA FINAL DETEKSI SESI & PENCATATAN NOTES ---
             current_session_start_time = None
-            current_session_total_process_time = 0.0
-            current_session_loss_time = 0.0
+            current_session_actual_running_time = 0.0 # Ganti total_process_time dengan waktu running
             current_session_notes = []
             is_main_program_active_in_this_session = False
-            
-            # PERBAIKAN: Inisialisasi list ini di sini untuk setiap program induk yang diproses
+            last_running_timestamp = None
+            last_log_timestamp = None
+
+            # Inisialisasi list untuk setiap program induk yang diproses
             detected_sessions_for_current_program_induk = []
 
             for idx_seg, segment_row in combined_logs_for_induk_calc.iterrows():
@@ -570,95 +566,103 @@ for _, row_induk_summary in temp_df_induk_summary.iterrows():
                     (program_main_name != segment_program_main_name_from_log) and \
                     (segment_status_category == 'RUNNING_OR_OTHER_KNOWN') and \
                     is_standard_program(segment_current_program_value)
+                
+                # Perbarui last_log_timestamp di setiap iterasi
+                last_log_timestamp = segment_end_time
 
                 # --- Skenario 1: Program Induk Aktif Terdeteksi ---
                 if is_current_segment_this_main_program_running:
                     if not is_main_program_active_in_this_session: # Program Induk baru saja dimulai/dilanjutkan
                         current_session_start_time = segment_start_time
-                        current_session_total_process_time = 0.0
-                        current_session_loss_time = 0.0
+                        current_session_actual_running_time = 0.0
                         current_session_notes = []
                         
-                        if len(detected_sessions_for_current_program_induk) > 0: # Ini adalah sesi lanjutan dalam program induk ini
+                        if len(detected_sessions_for_current_program_induk) > 0:
                             current_session_notes.append(f"Lanjutan (Waktu: {current_session_start_time.tz_convert(local_tz).strftime('%Y-%m-%d %H:%M:%S')})")
-                        else: # Ini adalah sesi pertama untuk program induk ini
+                        else:
                             current_session_notes.append(f"Mulai Sesi (Waktu: {current_session_start_time.tz_convert(local_tz).strftime('%Y-%m-%d %H:%M:%S')})")
                         
                         is_main_program_active_in_this_session = True
                     
-                    # Akumulasi durasi ke sesi saat ini
-                    current_session_total_process_time += segment_duration
-                    if segment_status_category == 'IDLE' or segment_status_category == 'OTHER' or not is_standard_program(segment_current_program_value):
-                        current_session_loss_time += segment_duration
+                    # Akumulasi durasi running ke sesi saat ini
+                    current_session_actual_running_time += segment_duration
+                    last_running_timestamp = segment_end_time
 
-                # --- Skenario 2: Program Lain Aktif (Interupsi yang Jelas) ---
+                # --- Skenario 2: Jeda atau Program Non-Standar Terdeteksi ---
+                elif (segment_duration > SESSION_GAP_THRESHOLD_SECONDS and is_main_program_active_in_this_session):
+                    # Ini adalah jeda panjang, sesi berakhir
+                    current_session_end_time = last_running_timestamp
+                    
+                    if current_session_end_time is None:
+                        continue # Lewati jika tidak ada running time sebelumnya
+
+                    total_session_duration = (current_session_end_time - current_session_start_time).total_seconds()
+                    
+                    # Hitung waktu loss dari selisih durasi total sesi dan waktu running
+                    loss_time = total_session_duration - current_session_actual_running_time
+                    
+                    detected_sessions_for_current_program_induk.append({
+                        'program_main_name': program_main_name,
+                        'session_start_time': current_session_start_time,
+                        'session_end_time': current_session_end_time,
+                        'total_process_time_seconds': total_session_duration,
+                        'total_loss_time_seconds': loss_time,
+                        'notes': "; ".join(current_session_notes) + f"; Jeda Panjang Terdeteksi (Durasi: {format_seconds_to_hhmmss(segment_duration)})"
+                    })
+                    # Reset state
+                    is_main_program_active_in_this_session = False
+                    current_session_start_time = None
+                    current_session_actual_running_time = 0.0
+                    current_session_notes = []
+                    last_running_timestamp = None
+                
+                # --- Skenario 3: Interupsi oleh Program Standar Lain ---
                 elif is_current_segment_other_standard_program_running:
-                    if is_main_program_active_in_this_session: # Program Induk aktif diinterupsi
-                        current_session_end_time = segment_start_time
+                    if is_main_program_active_in_this_session:
+                        # Akhiri sesi saat ini
+                        current_session_end_time = last_running_timestamp
+                        
+                        if current_session_end_time is None:
+                            continue # Lewati jika tidak ada running time sebelumnya
+                        
+                        total_session_duration = (current_session_end_time - current_session_start_time).total_seconds()
+                        loss_time = total_session_duration - current_session_actual_running_time
                         
                         detected_sessions_for_current_program_induk.append({
                             'program_main_name': program_main_name,
                             'session_start_time': current_session_start_time,
                             'session_end_time': current_session_end_time,
-                            'total_process_time_seconds': current_session_total_process_time,
-                            'total_loss_time_seconds': current_session_loss_time,
-                            'notes': "; ".join(current_session_notes) + f"; Interupsi oleh '{segment_current_program_value}' (Waktu: {segment_start_time.tz_convert(local_tz).strftime('%Y-%m-%d %H:%M:%S')})"
+                            'total_process_time_seconds': total_session_duration,
+                            'total_loss_time_seconds': loss_time,
+                            'notes': "; ".join(current_session_notes) + f"; Sesi diakhiri oleh interupsi program lain: '{segment_current_program_value}'"
                         })
                         
-                        # Reset state
+                        # Reset state untuk sesi berikutnya
                         is_main_program_active_in_this_session = False
                         current_session_start_time = None
-                        current_session_total_process_time = 0.0
-                        current_session_loss_time = 0.0
+                        current_session_actual_running_time = 0.0
                         current_session_notes = []
-                    # Program lain yang aktif ini tidak memulai sesi baru untuk program_main_name
-                
-                # --- Skenario 3: Jeda (Idle/Other/Non-Standar Program Seperti MDI.PRG) ---
-                else: # segment_status_category is IDLE or OTHER, OR program is non-standard (e.g., MDI.PRG)
-                    if is_main_program_active_in_this_session: # Jika Program Induk sedang aktif di sesi ini
-                        # Cek apakah jeda ini melebihi ambang batas
-                        # Jeda adalah dari EndTime segmen terakhir yang diakumulasi HINGGA StartTime segmen ini
-                        # Diasumsikan logs diurutkan, jadi segment_start_time - (current_session_start_time + accumulated_duration)
-                        
-                        # total_duration_so_far = (segment_start_time - current_session_start_time).total_seconds()
-                        # gap_duration = total_duration_so_far - current_session_total_process_time
-                        
-                        # Untuk lebih akurat, gunakan langsung dari previous end time jika memungkinkan,
-                        # atau paling tidak, durasi segmen itu sendiri
-                        
-                        if segment_duration > SESSION_GAP_THRESHOLD_SECONDS:
-                            # Jeda panjang, sesi program induk berakhir
-                            current_session_end_time = segment_start_time
-                            all_program_induk_sessions.append({
-                                'program_main_name': program_main_name,
-                                'session_start_time': current_session_start_time,
-                                'session_end_time': current_session_end_time,
-                                'total_process_time_seconds': current_session_total_process_time,
-                                'total_loss_time_seconds': current_session_loss_time,
-                                'notes': "; ".join(current_session_notes) + f"; Jeda Panjang Terdeteksi (Durasi: {format_seconds_to_hhmmss(segment_duration)}, Waktu: {segment_start_time.tz_convert(local_tz).strftime('%Y-%m-%d %H:%M:%S')})"
-                            })
-                            # Reset state
-                            is_main_program_active_in_this_session = False
-                            current_session_start_time = None
-                            current_session_total_process_time = 0.0
-                            current_session_loss_time = 0.0
-                            current_session_notes = []
-                        else:
-                            # Jeda pendek, masih bagian dari sesi yang sama, hanya menambah loss
-                            current_session_total_process_time += segment_duration
-                            current_session_loss_time += segment_duration
-                    # Jika tidak aktif, dan ini adalah jeda, tidak ada yang perlu dilakukan karena tidak ada sesi program induk aktif
+                        last_running_timestamp = None
 
-            # --- Setelah loop segmen selesai, tambahkan sesi Program Induk terakhir yang belum ditutup ---
+            # Setelah loop segmen selesai, tambahkan sesi Program Induk terakhir yang belum ditutup
             if is_main_program_active_in_this_session and current_session_start_time is not None:
-                # Sesi terakhir berakhir secara normal di akhir rentang keseluruhan
+                current_session_end_time = last_log_timestamp
+                if last_running_timestamp:
+                    total_session_duration = (last_running_timestamp - current_session_start_time).total_seconds()
+                    loss_time = total_session_duration - current_session_actual_running_time
+                    notes = "; ".join(current_session_notes) + f"; Selesai Normal (Waktu: {last_running_timestamp.tz_convert(local_tz).strftime('%Y-%m-%d %H:%M:%S')})"
+                else: # Jika tidak ada running time
+                    total_session_duration = 0.0
+                    loss_time = (current_session_end_time - current_session_start_time).total_seconds()
+                    notes = "; ".join(current_session_notes) + f"; Tidak ada Running Time"
+
                 detected_sessions_for_current_program_induk.append({
                     'program_main_name': program_main_name,
                     'session_start_time': current_session_start_time,
-                    'session_end_time': overall_end_time_induk,
-                    'total_process_time_seconds': current_session_total_process_time,
-                    'total_loss_time_seconds': current_session_loss_time,
-                    'notes': "; ".join(current_session_notes) + f"; Selesai Normal (Waktu: {overall_end_time_induk.tz_convert(local_tz).strftime('%Y-%m-%d %H:%M:%S')})"
+                    'session_end_time': current_session_end_time,
+                    'total_process_time_seconds': total_session_duration,
+                    'total_loss_time_seconds': loss_time,
+                    'notes': notes
                 })
             
             # --- Tambahkan sesi ke daftar global all_program_induk_sessions ---

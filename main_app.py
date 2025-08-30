@@ -70,7 +70,7 @@ loggers_config = {
     'app_core.program_processor': {'file': os.path.join(LOG_DIR, "program_processor.log"), 'level': logging.WARNING},
     'app_core.shift_calculator': {'file': os.path.join(LOG_DIR, "shift_calculator.log"), 'level': logging.WARNING},
     'app_core.program_report_thread': {'file': os.path.join(LOG_DIR, "program_report_thread.log"), 'level': logging.WARNING},
-    'app_core.opc_client_module': {'file': os.path.join(LOG_DIR, "opc_client_module.log"), 'level': logging.WARNING}, 
+    # 'app_core.opc_client_module': {'file': os.path.join(LOG_DIR, "opc_client_module.log"), 'level': logging.WARNING}, 
     'tzlocal': {'file': os.path.join(LOG_DIR, "tzlocal.log"), 'level': logging.WARNING},
 }
 for logger_name, config_setting in loggers_config.items():
@@ -132,85 +132,165 @@ def load_machine_configs(filepath):
 
 
 # --- Fungsi untuk Polling Mesin (untuk Thread) ---
+# def poll_machine_thread_target(client_instance, interval, stop_event):
+#     """
+#     Target fungsi untuk setiap thread. Mengelola koneksi dan polling untuk satu mesin.
+#     """
+#     max_retries = 3
+#     retry_delay = 5
+
+#     for attempt in range(max_retries):
+#         if stop_event.is_set():
+#             logger.info(
+#                 f"[{client_instance.machine_name}] Stop event set, terminating before connection."
+#             )
+#             return
+
+#         if client_instance.connect():
+#             logger.info(
+#                 f"[{client_instance.machine_name}] Starting polling and processing."
+#             )
+#             try:
+#                 while not stop_event.is_set():
+#                     raw_data = client_instance.read_all_variables()
+
+#                     if raw_data is not None:
+#                         logger.info(
+#                             f"[{client_instance.machine_name}] Raw Data: {raw_data}"
+#                         )
+
+#                         processed_data = data_processor.process_opcua_data(
+#                             client_instance.machine_name, raw_data
+#                         )
+#                         logger.info(
+#                             f"[{client_instance.machine_name}] Processed Data: {processed_data}"
+#                         )
+
+#                         with data_lock:
+#                             latest_machine_data[client_instance.machine_name] = (
+#                                 processed_data
+#                             )
+
+#                         # --- Store latest status for DB writing ---
+#                         with latest_status_for_db_write_lock:
+#                             current_timestamp = time.time()
+#                             status_text = processed_data.get("Status_Text", "N/A")
+#                             spindle_speed = processed_data.get("Spindle_Speed")
+#                             feed_rate = processed_data.get("FeedRate_mm_per_min")
+#                             current_program = processed_data.get("Current_Program", None)
+                            
+#                             latest_status_for_db_write[client_instance.machine_name] = {
+#                                 "timestamp": current_timestamp,
+#                                 "status_text": status_text,
+#                                 "spindle_speed": spindle_speed,
+#                                 "feed_rate": feed_rate,
+#                                 "current_program": current_program 
+#                             }
+#                             logger.debug(f"[{client_instance.machine_name}] Latest status for DB write updated with program: {current_program}.")
+#                         # --- End store latest status for DB writing ---
+#                     else:
+#                         logger.warning(
+#                             f"[{client_instance.machine_name}] No raw data received. `latest_machine_data` not updated."
+#                         )
+                        
+#                         time.sleep(interval)
+#             except Exception as e:
+#                 logger.critical(
+#                     f"[{client_instance.machine_name}] An error occurred during polling/processing: {e}",
+#                     exc_info=True,
+#                 )
+#             finally:
+#                 client_instance.disconnect()
+#                 logger.info(
+#                     f"[{client_instance.machine_name}] Polling stopped and client disconnected."
+#                 )
+
+#             break
+#         else:
+#             logger.warning(
+#                 f"[{client_instance.machine_name}] Connection attempt {attempt+1}/{max_retries} failed. Retrying in 5 seconds."
+#             )
+#             time.sleep(retry_delay)
+#     else:
+#         logger.error(
+#             f"[{client_instance.machine_name}] All connection attempts failed, thread terminating."
+#         )
+# --- Fungsi untuk Polling Mesin (untuk Thread) ---
 def poll_machine_thread_target(client_instance, interval, stop_event):
     """
     Target fungsi untuk setiap thread. Mengelola koneksi dan polling untuk satu mesin.
+    
+    Revised to handle connection loss and persistent reconnection attempts.
     """
-    max_retries = 3
-    retry_delay = 5
-
-    for attempt in range(max_retries):
-        if stop_event.is_set():
-            logger.info(
-                f"[{client_instance.machine_name}] Stop event set, terminating before connection."
-            )
-            return
-
-        if client_instance.connect():
-            logger.info(
-                f"[{client_instance.machine_name}] Starting polling and processing."
-            )
+    logger.info(f"[{client_instance.machine_name}] Starting polling thread.")
+    while not stop_event.is_set():
+        if not client_instance.connected: # Changed from .is_connected()
+            logger.info(f"[{client_instance.machine_name}] Attempting to connect...")
             try:
-                while not stop_event.is_set():
-                    raw_data = client_instance.read_all_variables()
-
-                    if raw_data:
-                        logger.info(
-                            f"[{client_instance.machine_name}] Raw Data: {raw_data}"
-                        )
-
-                        processed_data = data_processor.process_opcua_data(
-                            client_instance.machine_name, raw_data
-                        )
-                        logger.info(
-                            f"[{client_instance.machine_name}] Processed Data: {processed_data}"
-                        )
-
-                        with data_lock:
-                            latest_machine_data[client_instance.machine_name] = (
-                                processed_data
-                            )
-
-                        # --- Store latest status for DB writing ---
-                        with latest_status_for_db_write_lock:
-                            current_timestamp = time.time()
-                            status_text = processed_data.get("Status_Text", "N/A")
-                            spindle_speed = processed_data.get("Spindle_Speed")
-                            feed_rate = processed_data.get("FeedRate_mm_per_min")
-                            current_program = processed_data.get("Current_Program", None)
-                            
-                            latest_status_for_db_write[client_instance.machine_name] = {
-                                "timestamp": current_timestamp,
-                                "status_text": status_text,
-                                "spindle_speed": spindle_speed,
-                                "feed_rate": feed_rate,
-                                "current_program": current_program 
-                            }
-                            logger.debug(f"[{client_instance.machine_name}] Latest status for DB write updated with program: {current_program}.")
-                        # --- End store latest status for DB writing ---
-
-                        time.sleep(interval)
+                client_instance.connect()
+                if client_instance.connected: # Changed from .is_connected()
+                    logger.info(f"[{client_instance.machine_name}] Successfully connected. Starting data polling loop.")
+                else:
+                    logger.warning(f"[{client_instance.machine_name}] Connection attempt failed. Retrying in {interval} seconds.")
+                    stop_event.wait(interval)
+                    continue
             except Exception as e:
-                logger.critical(
-                    f"[{client_instance.machine_name}] An error occurred during polling/processing: {e}",
-                    exc_info=True,
-                )
-            finally:
-                client_instance.disconnect()
-                logger.info(
-                    f"[{client_instance.machine_name}] Polling stopped and client disconnected."
-                )
+                logger.error(f"[{client_instance.machine_name}] Connection error: {e}. Retrying in {interval} seconds.", exc_info=True)
+                stop_event.wait(interval)
+                continue
 
-            break
-        else:
-            logger.warning(
-                f"[{client_instance.machine_name}] Connection attempt {attempt+1}/{max_retries} failed. Retrying in 5 seconds."
+        # Polling loop
+        try:
+            raw_data = client_instance.read_all_variables()
+
+            if raw_data is not None:
+                logger.info(f"[{client_instance.machine_name}] Raw Data: {raw_data}")
+
+                processed_data = data_processor.process_opcua_data(
+                    client_instance.machine_name, raw_data
+                )
+                logger.info(f"[{client_instance.machine_name}] Processed Data: {processed_data}")
+
+                with data_lock:
+                    latest_machine_data[client_instance.machine_name] = processed_data
+
+                # Store latest status for DB writing
+                with latest_status_for_db_write_lock:
+                    current_timestamp = time.time()
+                    status_text = processed_data.get("Status_Text", "N/A")
+                    spindle_speed = processed_data.get("Spindle_Speed")
+                    feed_rate = processed_data.get("FeedRate_mm_per_min")
+                    current_program = processed_data.get("Current_Program", None)
+                    
+                    latest_status_for_db_write[client_instance.machine_name] = {
+                        "timestamp": current_timestamp,
+                        "status_text": status_text,
+                        "spindle_speed": spindle_speed,
+                        "feed_rate": feed_rate,
+                        "current_program": current_program 
+                    }
+                    logger.debug(f"[{client_instance.machine_name}] Latest status for DB write updated with program: {current_program}.")
+            else:
+                logger.warning(
+                    f"[{client_instance.machine_name}] No raw data received. `latest_machine_data` not updated. Disconnecting to force reconnect."
+                )
+                client_instance.disconnect()
+                
+            stop_event.wait(interval)
+
+        except Exception as e:
+            logger.critical(
+                f"[{client_instance.machine_name}] An error occurred during polling/processing: {e}",
+                exc_info=True,
             )
-            time.sleep(retry_delay)
-    else:
-        logger.error(
-            f"[{client_instance.machine_name}] All connection attempts failed, thread terminating."
-        )
+            logger.info(f"[{client_instance.machine_name}] Disconnecting to trigger reconnection attempt.")
+            client_instance.disconnect()
+
+    # If the stop event is set, we reach here and the thread terminates
+    if client_instance.connected: # Changed from .is_connected()
+        client_instance.disconnect()
+        logger.info(f"[{client_instance.machine_name}] Polling stopped and client disconnected.")
+    logger.info(f"[{client_instance.machine_name}] Thread terminated gracefully.")
 
 
 def json_writer_thread_target(json_filepath, lock, stop_event, data_source):

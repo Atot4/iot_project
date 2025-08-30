@@ -121,7 +121,7 @@ for machine in machines_for_list:
 # Remove duplicates and sort the list
 unique_main_program_names = sorted(list(set(all_main_program_names)))
 
-program_name_filter = st.sidebar.text_input("Filter by Program Name (contains)", "")
+program_name_filter = st.sidebar.text_input("Main Program", "")
 program_name_filter = program_name_filter.strip() if program_name_filter else None
 
 if start_date > end_date:

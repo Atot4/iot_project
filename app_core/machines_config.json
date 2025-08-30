@@ -16,6 +16,28 @@
             }
         },
         {
+            "name": "Yasda 1 - 1013",
+            "variables": {
+                "Status": "ns=1;s=/1013/STATUS",
+                "Moden": "ns=1;s=/1013/MODEN",
+                "Motion": "ns=1;s=/1013/MOTIO",
+                "Program": "ns=1;s=/1013/PRGMN",
+                "Spindle": "ns=1;s=/1013/SPSPD",
+                "FeedRate": "ns=1;s=/1013/FEEDR"
+            }
+        },
+        {
+            "name": "Yasda 2 - 1014",
+            "variables": {
+                "Status": "ns=1;s=/1014/STATUS",
+                "Moden": "ns=1;s=/1014/MODEN",
+                "Motion": "ns=1;s=/1014/MOTIO",
+                "Program": "ns=1;s=/1014/PRGMN",
+                "Spindle": "ns=1;s=/1014/SPSPD",
+                "FeedRate": "ns=1;s=/1014/FEEDR"
+            }
+        },
+        {
             "name": "Yasda 3 - 1001",
             "variables": {
                 "Status": "ns=1;s=/1001/STATUS",
@@ -24,6 +46,17 @@
                 "Program": "ns=1;s=/1001/PRGMN",
                 "Spindle": "ns=1;s=/1001/SPSPD",
                 "FeedRate": "ns=1;s=/1001/FEEDR"
+            }
+        },
+        {
+            "name": "OKK - 1015",
+            "variables": {
+                "Status": "ns=1;s=/1015/STATUS",
+                "Moden": "ns=1;s=/1015/MODEN",
+                "Motion": "ns=1;s=/1015/MOTIO",
+                "Program": "ns=1;s=/1015/PRGMN",
+                "Spindle": "ns=1;s=/1015/SPSPD",
+                "FeedRate": "ns=1;s=/1015/FEEDR"
             }
         },
         {
@@ -47,18 +80,8 @@
                 "FeedRate": "ns=1;s=/1005/FEEDR"
             }
         },
-        {
-            "name": "Wele 3 - 1006",
-            "variables": {
-                "Status": "ns=1;s=/1006/STATUS",
-                "State_Number": "ns=1;s=/1006/STATN",
-                "Program": "ns=1;s=/1006/PRGMN",
-                "Spindle": "ns=1;s=/1006/SPDSP",
-                "FeedRate": "ns=1;s=/1006/FEEDR"
-            }
-        },
-        {
-            "name": "Wele 4 - 1007",
+         {
+            "name": "Wele 3 - 1007",
             "variables": {
                 "Status": "ns=1;s=/1007/STATUS",
                 "State_Number": "ns=1;s=/1007/STATN",
@@ -67,6 +90,17 @@
                 "FeedRate": "ns=1;s=/1007/FEEDR"
             }
         },
+        {
+            "name": "Wele 4 - 1006",
+            "variables": {
+                "Status": "ns=1;s=/1006/STATUS",
+                "State_Number": "ns=1;s=/1006/STATN",
+                "Program": "ns=1;s=/1006/PRGMN",
+                "Spindle": "ns=1;s=/1006/SPDSP",
+                "FeedRate": "ns=1;s=/1006/FEEDR"
+            }
+        },
+       
         {
             "name": "Makino F5(1) - 1008",
             "variables": {
@@ -88,10 +122,61 @@
         {
             "name": "Makino V33 - 1012",
             "variables": {
+                "Status": "ns=1;s=/1012/STATUS",
                 "Moden": "ns=1;s=/1012/MODEN",
                 "Motion": "ns=1;s=/1012/MOTIO",
                 "Spindle": "ns=1;s=/1012/SPSPD",
-                "FeedRate": "ns=1;s=/1012/FEEDR"
+                "FeedRate": "ns=1;s=/1012/FEEDR",
+                "Program_num": "ns=1;s=/1012/PGNUM",
+                "Setting_num": "ns=1;s=/1012/STNUM",
+                "Sub_process_num": "ns=1;s=/1012/SUBNU",
+                "Program_id": "ns=1;s=/1012/PRGID"
+            }
+        },
+        {
+            "name": "HSM800 - 1011",
+            "variables": {
+                "Status": "ns=1;s=/1011/STATUS",
+                "State_Number": "ns=1;s=/1011/STATN",
+                "Program": "ns=1;s=/1011/PRGMN",
+                "OvrSpindle": "ns=1;s=/1011/OVRSP",
+                "Spindle": "ns=1;s=/1011/RPM",
+                "OvrFeed": "ns=1;s=/1011/OVRFD",
+                "FeedRate": "ns=1;s=/1011/FEED"
+            }
+        },
+        {
+            "name": "HPM600 - 1010",
+            "variables": {
+                "Status": "ns=1;s=/1010/STATUS",
+                "State_Number": "ns=1;s=/1010/STATN",
+                "Program": "ns=1;s=/1010/PRGMN",
+                "OvrSpindle": "ns=1;s=/1010/OVRSP",
+                "Spindle": "ns=1;s=/1010/RPM",
+                "OvrFeed": "ns=1;s=/1010/OVRFD",
+                "FeedRate": "ns=1;s=/1010/FEED"
+            }
+        },
+        {
+             "name": "HPM800 - 1003",
+             "variables": {
+                "Status": "ns=1;s=/1003/STATUS",
+                "State_Number": "ns=1;s=/1003/STATN",
+                "Program": "ns=1;s=/1003/PRGMN",
+                "OvrSpindle": "ns=1;s=/1003/OVRSP",
+                "Spindle": "ns=1;s=/1003/RPM",
+                "OvrFeed": "ns=1;s=/1003/OVRFD",
+                "FeedRate": "ns=1;s=/1003/FEED"   
+            }
+        },
+        {
+            "name": "P500 - 1004",
+            "variables": {
+                "Status": "ns=1;s=/1004/STATUS",
+                "State_Number": "ns=1;s=/1004/STATN",
+                "Program": "ns=1;s=/1004/PRGMN",
+                "OvrSpindle": "ns=1;s=/1004/OVRSP",
+                "OvrFeed": "ns=1;s=/1004/OVRFD"
             }
         }
     ]

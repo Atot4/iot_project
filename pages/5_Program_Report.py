@@ -1,4 +1,4 @@
-# pages/5_program_report.py
+# pages/5_Machine_Cycle_Report.py
 
 import streamlit as st
 import pandas as pd
@@ -38,8 +38,8 @@ except Exception as e:
 
 
 # --- Streamlit Page Configuration & CSS ---
-st.set_page_config(layout="wide", page_title="Laporan Program Mesin")
-st.title("Laporan Program Mesin")
+st.set_page_config(layout="wide", page_title="Program Report")
+st.title("Program Report")
 
 # CSS untuk mengubah ukuran font metrik (opsional, seperti yang Anda tambahkan sebelumnya)
 st.markdown(
@@ -56,7 +56,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.sidebar.header("Filter Laporan Program")
+#st.sidebar.header("Filter Laporan Program")
 
 # --- Dapatkan daftar mesin yang tersedia dari database (dengan caching) ---
 @st.cache_data(ttl=3600) # Cache hasil selama 1 jam
@@ -102,24 +102,24 @@ if not ordered_machine_names:
     st.warning("Tidak ada data mesin yang ditemukan di tabel laporan program. Pastikan aplikasi utama berjalan dan memproses data program.")
     st.stop()
 
-selected_machine = st.sidebar.selectbox("Pilih Mesin", options=ordered_machine_names)
+selected_machine = st.sidebar.selectbox("Select a Machine", options=ordered_machine_names)
 
 # Rentang tanggal untuk filter
 col1, col2 = st.sidebar.columns(2)
 with col1:
-    start_date = st.date_input("Tanggal Mulai", value=datetime.date.today() - datetime.timedelta(days=7))
+    start_date = st.date_input("Start Date", value=datetime.date.today() - datetime.timedelta(days=7))
 with col2:
-    end_date = st.date_input("Tanggal Akhir", value=datetime.date.today())
+    end_date = st.date_input("End Date", value=datetime.date.today())
 
 if start_date > end_date:
     st.sidebar.error("Tanggal mulai tidak boleh lebih lambat dari tanggal akhir.")
     st.stop()
 
 selected_main_program_input = st.sidebar.text_input(
-    "Filter Program Induk (masukkan sebagian nama)",
+    "Main Program",
     value=st.session_state.get('main_program_report_filter_input', ""),
     key='main_program_report_filter_input'
-).strip()
+).strip().upper()
 
 
 # --- Load Program Report Data dari DB (dengan caching) ---
@@ -137,38 +137,47 @@ def load_and_process_program_report_data(machine_name, start_date, end_date, mai
     df_report = pd.DataFrame(logs)
     
     if not df_report.empty:
-        # Ekstraksi nama induk
+        #Ekstraksi nama induk
         df_report['program_main_name'] = df_report['program_name'].apply(
             lambda x: str(x).split('-')[0].strip() if x and '-' in str(x) else str(x).strip()
         )
-        
+
+        # Tambahkan filter untuk mengabaikan program yang tidak diawali dengan 'N'
+        df_report = df_report[df_report['program_main_name'].str.startswith('N', na=False)]
+
+
         # Terapkan filter program induk jika ada
         if main_program_filter:
-            df_report = df_report[
-                df_report['program_main_name'].str.contains(main_program_filter, case=False, na=False)
+            # Mengidentifikasi waktu mulai dan berakhir dari status 'Running' untuk program induk yang difilter
+            running_programs = df_report[
+                (df_report['program_main_name'].str.contains(main_program_filter, case=False, na=False))
             ]
+
+            if running_programs.empty:
+                # Jika tidak ada status 'Running' untuk program yang difilter, kembalikan DataFrame kosong
+                return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+
+            start_timestamp_of_running = running_programs['start_time'].min()
+            end_timestamp_of_running = running_programs['end_time'].max()
+
+            # Filter seluruh DataFrame berdasarkan rentang waktu 'Running' yang teridentifikasi
+            # dan juga filter berdasarkan machine_name (sesuai logika SQL)
+            df_report = df_report[
+                (df_report['start_time'] >= start_timestamp_of_running) &
+                (df_report['end_time'] <= end_timestamp_of_running) &
+                (df_report['machine_name'] == selected_machine)
+            ]
+
             if df_report.empty:
                 return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-        # PERUBAHAN UTAMA: Deteksi sesi berdasarkan program induk yang berurutan DAN jeda waktu
+        # PERUBAHAN UTAMA: Deteksi sesi berdasarkan program induk yang berurutan
         df_report = df_report.sort_values(by='start_time').reset_index(drop=True)
 
-        # Cek kapan program induk berubah ATAU ada jeda waktu besar
-        df_report['prev_end_time'] = df_report['end_time'].shift(1)
-        df_report['time_gap'] = (df_report['start_time'] - df_report['prev_end_time']).dt.total_seconds().fillna(0)
-
-        # Tentukan ambang batas jeda (misalnya, 1 jam = 3600 detik)
-        SESSION_GAP_THRESHOLD_SECONDS = 3600 
-
-        # Sesi baru dimulai jika:
-        # 1. Nama program induk berubah.
-        # 2. Ada jeda waktu antar sub-program yang lebih besar dari ambang batas.
-        df_report['session_break'] = (
-            (df_report['program_main_name'] != df_report['program_main_name'].shift(1)) |
-            (df_report['time_gap'] > SESSION_GAP_THRESHOLD_SECONDS)
-        )
-        
+        # Sesi baru dimulai hanya jika nama program induk berubah.
+        df_report['session_break'] = (df_report['program_main_name'] != df_report['program_main_name'].shift(1))
         df_report['session_id'] = df_report['session_break'].cumsum()
+       
 
         # Agregasi data untuk setiap sesi
         df_summary_main_program = df_report.groupby(['program_main_name', 'session_id']).agg(
@@ -185,20 +194,10 @@ def load_and_process_program_report_data(machine_name, start_date, end_date, mai
             df_summary_main_program['duration_total_seconds'] - df_summary_main_program['total_processing_seconds']
         )
         
-        # Asumsikan Qty = 1 per sesi untuk laporan ini
-        df_summary_main_program['quantity'] = 1 
-        
-        df_summary_main_program['duration_per_piece_seconds'] = df_summary_main_program['duration_total_seconds'] / df_summary_main_program['quantity']
-        df_summary_main_program['loss_time_per_piece_seconds'] = df_summary_main_program['loss_time_seconds'] / df_summary_main_program['quantity']
-        df_summary_main_program['cutting_time_per_piece_seconds'] = df_summary_main_program['total_processing_seconds'] / df_summary_main_program['quantity']
-
         # Format semua durasi ke HH:MM:SS
         df_summary_main_program['duration_total'] = df_summary_main_program['duration_total_seconds'].apply(format_seconds_to_hhmmss)
         df_summary_main_program['total_processing_time'] = df_summary_main_program['total_processing_seconds'].apply(format_seconds_to_hhmmss)
         df_summary_main_program['loss_time'] = df_summary_main_program['loss_time_seconds'].apply(format_seconds_to_hhmmss)
-        df_summary_main_program['duration_per_piece'] = df_summary_main_program['duration_per_piece_seconds'].apply(format_seconds_to_hhmmss)
-        df_summary_main_program['loss_time_per_piece'] = df_summary_main_program['loss_time_per_piece_seconds'].apply(format_seconds_to_hhmmss)
-        df_summary_main_program['cutting_time_per_piece'] = df_summary_main_program['cutting_time_per_piece_seconds'].apply(format_seconds_to_hhmmss)
         
         df_summary_main_program['start_time'] = df_summary_main_program['start_time'].dt.strftime('%Y-%m-%d %H:%M:%S')
         df_summary_main_program['end_time'] = df_summary_main_program['end_time'].dt.strftime('%Y-%m-%d %H:%M:%S')
@@ -245,51 +244,98 @@ df_main_program_summary, df_subprogram_summary, df_program_report_display = load
     selected_machine, start_date, end_date, selected_main_program_input
 )
 
-st.subheader(f"Laporan Program untuk {selected_machine}")
+st.subheader(f"{selected_machine}")
+
+# Use a single markdown line to handle both cases for better readability.
 if selected_main_program_input:
-    st.markdown(f"##### Filter Program Induk: **'{selected_main_program_input}'**")
+    st.markdown(f"##### Main Program **'{selected_main_program_input}'**")
+else:
+    st.markdown("#### Main Program")
 
+# Check if the main program summary DataFrame is not empty
 if not df_main_program_summary.empty:
-    st.markdown("#### Laporan Program Induk (per Sesi)")
-    df_main_program_display = df_main_program_summary[[
-        'program_main_name', 'start_time', 'end_time', 'duration_total', 'loss_time', 'total_processing_time', 
-        'quantity', 'duration_per_piece', 'loss_time_per_piece', 'cutting_time_per_piece'
-    ]].rename(columns={
-        'program_main_name': 'Main Program',
-        'start_time': 'Start Time',
-        'end_time': 'End Time',
-        'duration_total': 'Duration',
-        'total_processing_time': 'Cutting Time',
-        'loss_time': 'Loss Time',
-        'quantity': 'Qty',
-        'duration_per_piece': 'Duration/pcs',
-        'loss_time_per_piece': 'Loss Time/pcs',
-        'cutting_time_per_piece': 'Cutting Time/pcs'
-    })
-    st.dataframe(df_main_program_display, use_container_width=True)
+    # Start with a copy of the full DataFrame
+    filtered_main_program_df = df_main_program_summary.copy()
+
+    # If there's a filter, apply it to the DataFrame
+    if selected_main_program_input:
+        filtered_main_program_df = filtered_main_program_df[
+            filtered_main_program_df['program_main_name'].str.contains(
+                selected_main_program_input, case=False, na=False
+            )
+        ]
+
+    # Sort the filtered DataFrame. This happens regardless of whether it was filtered or not.
+    filtered_main_program_df = filtered_main_program_df.sort_values(by='start_time', ascending=False)
+    
+    # Check if the filtered/sorted DataFrame is empty
+    if filtered_main_program_df.empty:
+        st.info("No main program summary data matches the filter.")
+    else:
+        # Select and rename columns for display
+        df_main_program_display = filtered_main_program_df[[
+            'program_main_name', 'start_time', 'end_time', 'duration_total', 
+            'total_processing_time', 'loss_time'
+        ]].rename(columns={
+            'program_main_name': 'Main Program',
+            'start_time': 'Start Time',
+            'end_time': 'End Time',
+            'duration_total': 'Duration',
+            'total_processing_time': 'Cutting Time',
+            'loss_time': 'Loss Time'
+        })
+        st.dataframe(df_main_program_display, use_container_width=True)
 else:
-    st.info("Tidak ada data ringkasan program induk yang tersedia untuk mesin ini dalam rentang tanggal yang dipilih.")
+    # This message is shown only if the initial DataFrame is empty
+    st.info("No main program summary data is available for this machine within the selected date range.")
+
 
 st.markdown("---")
-st.markdown("#### Laporan Sub-Program")
+st.markdown("#### Sub-Program Cycle")
+
+# Check if the sub-program summary DataFrame is not empty
 if not df_subprogram_summary.empty:
-    st.dataframe(df_subprogram_summary[[
-        'program_name', 'start_time', 'end_time', 'duration_total', 'total_processing_time', 'loss_time'
-    ]].rename(columns={
-        'program_name': 'Program Name',
-        'start_time': 'Start',
-        'end_time': 'End',
-        'duration_total': 'Total Duration',
-        'total_processing_time': 'Actual Duration',
-        'loss_time': 'Loss Time'
-    }), use_container_width=True)
+    # Use a copy of the DataFrame to avoid modifying the original
+    filtered_subprogram_df = df_subprogram_summary.copy()
+
+    # If a main program is selected, filter the DataFrame
+    if selected_main_program_input:
+        filtered_subprogram_df = filtered_subprogram_df[
+            filtered_subprogram_df['program_name'].str.contains(selected_main_program_input, case=False, na=False)
+        ]
+
+    # Sort the filtered DataFrame by 'start_time' in descending order
+    filtered_subprogram_df = filtered_subprogram_df.sort_values(by='start_time', ascending=False)
+
+    # If the filtered DataFrame is empty, show an info message
+    if filtered_subprogram_df.empty:
+        st.info("No sub-program summary data found that matches the filter.")
+    else:
+        # Display the filtered data in a Streamlit table
+        st.dataframe(filtered_subprogram_df[[
+            'program_name', 'start_time', 'end_time', 'duration_total', 'total_processing_time', 'loss_time'
+        ]].rename(columns={
+            'program_name': 'Program Name',
+            'start_time': 'Start',
+            'end_time': 'End',
+            'duration_total': 'Duration',
+            'total_processing_time': 'Cutting Time',
+            'loss_time': 'Loss Time'
+        }), use_container_width=True)
 else:
-    st.info("Tidak ada data ringkasan sub-program yang tersedia untuk mesin ini dalam rentang tanggal yang dipilih.")
+    # If the initial DataFrame is empty, show a different info message
+    st.info("No sub-program summary data available for this machine within the selected date range.")
 
 st.markdown("---")
-st.markdown("#### Detail Siklus Sub-Program")
+st.markdown("#### Sub-Program Cycle Details")
 if not df_program_report_display.empty:
-    st.dataframe(df_program_report_display, use_container_width=True)
+    df_display_filtered = df_program_report_display.copy()
+    df_display_filtered = df_display_filtered.sort_values(by='start_time', ascending=False)
+    df_display_filtered = df_display_filtered.rename(columns={
+        "duration": "Cutting Time"
+    })
+
+    st.dataframe(df_display_filtered, use_container_width=True)
 else:
     st.info(f"Tidak ada data siklus program yang tersedia untuk {selected_machine} dalam rentang tanggal yang dipilih.")
 

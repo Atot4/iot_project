@@ -22,24 +22,28 @@ from app_core.config import (
 )
 
 # --- Helper Functions ---
-
-
 def load_json_data(filepath):
     """
     Memuat data dari file JSON.
-    Menangani kasus file tidak ada atau format JSON tidak valid.
+    Menangani kasus file tidak ada, format JSON tidak valid, atau file kosong.
     """
     if not os.path.exists(filepath):
-        # st.warning(f"File data '{filepath}' tidak ditemukan.") # Dapat diaktifkan untuk debugging
+        # logging.warning(f"File data '{filepath}' tidak ditemukan.")
         return None
+    
+    # Tambahkan pemeriksaan untuk file kosong
+    if os.path.getsize(filepath) == 0:
+        logging.warning(f"File data '{filepath}' kosong. Mengabaikan pembacaan.")
+        return None
+        
     try:
         with open(filepath, "r") as f:
             return json.load(f)
     except json.JSONDecodeError as e:
-        st.error(f"Error decoding JSON from {filepath}: {e}")
+        logging.error(f"Error decoding JSON from {filepath}: {e}")
         return None
     except Exception as e:
-        st.error(f"An unexpected error occurred while loading {filepath}: {e}")
+        logging.error(f"An unexpected error occurred while loading {filepath}: {e}")
         return None
 
 
@@ -56,7 +60,7 @@ machine_data = load_json_data(DATA_FILE)
 
 # Tampilkan pesan jika data mesin belum tersedia
 if not machine_data:
-    status_message.warning(
+    print(
         "Menunggu data mesin... Pastikan program utama (`main_app.py`) sedang berjalan dan menghasilkan file `machine_data.json`."
     )
 else:
@@ -101,7 +105,7 @@ else:
             ):
                 if machine_name in machine_data:
                     with cols[j]:
-                        st.subheader(f"{machine_name}")
+                        #st.subheader(f"{machine_name}")
 
                         machine_info = machine_data[machine_name]
                         status_text = machine_info.get("Status_Text", "N/A")
@@ -113,7 +117,7 @@ else:
                         ovrspindle = machine_info.get("OvrSpindle", "N/A")
                         ovrfeed = machine_info.get("OvrFeed", "N/A")
                         
-                        with st.container(border=True):
+                        with st.container(border=False):
                             # Menentukan warna status
                             status_color = 'grey' # Default
                             if status_text in RUNNING_STATUSES:
@@ -123,20 +127,34 @@ else:
                             else: # Untuk status lainnya seperti "Disconnected", "Alarm", "Undefined Status"
                                 status_color = 'red'
 
-                            st.markdown(
-                                f"**Status:** <span style='color: {status_color}; font-weight: bold;'>{status_text}</span>",
-                                unsafe_allow_html=True,
-                            )
-                            st.write(f"**Program:** {current_program}")
-                            st.write(f"**Spindle:** {spindle_speed} RPM")
-                            st.write(f"**Feedrate:** {feedrate} mm/min")
-                            st.write(f"**Ovr Spindle:** {ovrspindle} %")
-                            st.write(f"**Ovr Feed:** {ovrfeed} %")
+                            # st.markdown(
+                            #     f"**Status:** <span style='color: {status_color}; font-weight: bold;'>{status_text}</span>",
+                            #     unsafe_allow_html=True,
+                            # )
+                            st.markdown(f"""
+                                <div style='border-radius: 5px; padding: 10px;'>
+                                    <div style='display: flex; justify-content: space-between; align-items: center;'>
+                                        <span style='font-size: 20px; font-weight: bold;'>{machine_name}</span>
+                                        <span style='color: {status_color}; font-weight: bold;'>{status_text}</span>
+                                    </div>
+                                    <hr style='border: 1px solid #ccc; padding: 0px; margin: 0px'>
+                                    <div>
+                                        <span style='font-weight: bold;'>Program:</span> {current_program}<br>
+                                        <span style='font-weight: bold;'>Spindle:</span> {spindle_speed}<br>
+                                        <span style='font-weight: bold;'>Feedrate:</span> {feedrate}
+                                    </div>
+                                </div>
+                            """, unsafe_allow_html=True)
+                            # st.write(f"**Program:** {current_program}")
+                            # st.write(f"**Spindle:** {spindle_speed} RPM")
+                            # st.write(f"**Feedrate:** {feedrate} mm/min")
+                            # st.write(f"**Ovr Spindle:** {ovrspindle} %")
+                            # st.write(f"**Ovr Feed:** {ovrfeed} %")
 
                 else:
                     with cols[j]:
                         st.empty()  # Placeholder untuk kolom kosong
 
-# Otomatis refresh halaman setiap 1 detik
+# Otomatis refresh halaman setiap 5 detik
 time.sleep(1)
 st.rerun()

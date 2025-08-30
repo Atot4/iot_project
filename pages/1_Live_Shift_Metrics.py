@@ -249,8 +249,8 @@ else:
                                 df_pie = pd.DataFrame(pie_data)
 
                                 # Display the DataFrame for debugging purposes (remove in production)
-                                st.write(f"DataFrame for {machine_name}:")
-                                st.dataframe(df_pie) # Use st.dataframe, assuming version compatibility is handled by updates.
+                                # st.write(f"DataFrame for {machine_name}:")
+                                # st.dataframe(df_pie) # Use st.dataframe, assuming version compatibility is handled by updates.
 
                                 fig = px.pie(
                                     df_pie,

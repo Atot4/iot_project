@@ -15,6 +15,23 @@ def convert_time_to_seconds(time_str):
         return datetime.timedelta(hours=h, minutes=m, seconds=s).total_seconds()
     except (ValueError, AttributeError):
         return None
+    
+def clean_program_name(name):
+    """
+    Membersihkan nama program dengan menghapus ekstensi yang umum.
+    """
+    if not isinstance(name, str):
+        return name
+    
+    # Daftar ekstensi umum dalam huruf kecil
+    possible_extensions = ['.nc', '.h']
+    
+    name_lower = name.lower()
+    for ext in possible_extensions:
+        if name_lower.endswith(ext):
+            return name[:-len(ext)]
+    return name
+
 
 # Fungsi untuk memproses DataFrame mentah dari CSV
 def process_raw_csv_data(df_raw, file_name):
@@ -25,7 +42,9 @@ def process_raw_csv_data(df_raw, file_name):
     df_raw.rename(columns={'Cycle': 'Notes'}, inplace=True)
     
     # Menambah kolom 'program_name'
-    df_raw['program_name'] = file_name + df_raw['Job #'].astype(str) + '.NC'
+    df_raw['program_name'] = file_name + df_raw['Job #'].astype(str)
+
+    df_raw['program_name'] = df_raw['program_name'].apply(clean_program_name)
 
     # Konversi kolom 'Machining time' menjadi total detik
     df_raw['Machining_time_seconds'] = df_raw['Machining time'].apply(convert_time_to_seconds)

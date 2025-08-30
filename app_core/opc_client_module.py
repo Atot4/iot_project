@@ -57,28 +57,76 @@ class OpcUaClient:
             self.connected = False
         return self.connected
 
+    # def disconnect(self):
+    #     """
+    #     Memutuskan koneksi dari server OPC UA.
+    #     """
+    #     if self.connected and self.client:
+    #         try:
+    #             self.client.disconnect()
+    #             self.connected = False
+    #             logger.info(f"[{self.machine_name}] Disconnected from OPC UA server.")
+    #         except Exception as e:
+    #             logger.error(f"[{self.machine_name}] Error during disconnection: {e}")
+
     def disconnect(self):
         """
-        Memutuskan koneksi dari server OPC UA.
+        Disconnects the OPC UA client from the server.
+        Includes error handling to prevent "socket not found" errors.
         """
-        if self.connected and self.client:
+        if self.connected:
             try:
                 self.client.disconnect()
                 self.connected = False
-                logger.info(f"[{self.machine_name}] Disconnected from OPC UA server.")
+                logging.getLogger(__name__).info(f"[{self.machine_name}] Disconnected from OPC UA server.")
             except Exception as e:
-                logger.error(f"[{self.machine_name}] Error during disconnection: {e}")
+                # Catching a broad exception here to handle WinError 10038 gracefully
+                logging.getLogger(__name__).error(f"[{self.machine_name}] Error during disconnection: {e}")
+        else:
+            logging.getLogger(__name__).info(f"[{self.machine_name}] Client is already disconnected.")
+
+    # def read_all_variables(self):
+    #     """
+    #     Membaca nilai dari semua variabel yang dikonfigurasi.
+
+    #     Returns:
+    #         dict: Kamus yang berisi nama variabel dan nilai-nilainya,
+    #               atau None jika tidak terhubung atau ada kesalahan.
+    #     """
+    #     if not self.connected:
+    #         return None  # Tidak perlu mencetak pesan di sini, karena run_polling sudah memeriksa koneksi
+
+    #     read_values = {}
+    #     for name, node_id in self.variables.items():
+    #         try:
+    #             node = self.client.get_node(node_id)
+    #             value = node.get_value()
+    #             read_values[name] = value
+    #         except ua.UaError as e:
+    #             # Kesalahan OPC UA (NodeId tidak ditemukan, Bad_NodeIdUnknown, dll.)
+    #             logger.warning(
+    #                 f"[{self.machine_name}] OPC UA Error reading '{name}' ({node_id}): {e}"
+    #             )
+    #             read_values[name] = None
+    #         except Exception as e:
+    #             # Kesalahan umum lainnya
+    #             logger.error(
+    #                 f"[{self.machine_name}] Unexpected error reading '{name}' ({node_id}): {e}"
+    #             )
+    #             read_values[name] = None
+    #     return read_values
 
     def read_all_variables(self):
         """
         Membaca nilai dari semua variabel yang dikonfigurasi.
-
+        
         Returns:
             dict: Kamus yang berisi nama variabel dan nilai-nilainya,
-                  atau None jika tidak terhubung atau ada kesalahan.
+                atau None jika tidak terhubung, ada kesalahan, atau tidak ada variabel yang berhasil dibaca.
         """
         if not self.connected:
-            return None  # Tidak perlu mencetak pesan di sini, karena run_polling sudah memeriksa koneksi
+            logger.warning(f"[{self.machine_name}] Not connected. Cannot read variables.")
+            return None
 
         read_values = {}
         for name, node_id in self.variables.items():
@@ -87,15 +135,19 @@ class OpcUaClient:
                 value = node.get_value()
                 read_values[name] = value
             except ua.UaError as e:
-                # Kesalahan OPC UA (NodeId tidak ditemukan, Bad_NodeIdUnknown, dll.)
                 logger.warning(
                     f"[{self.machine_name}] OPC UA Error reading '{name}' ({node_id}): {e}"
                 )
-                read_values[name] = None
+                # read_values[name] = None
             except Exception as e:
-                # Kesalahan umum lainnya
                 logger.error(
                     f"[{self.machine_name}] Unexpected error reading '{name}' ({node_id}): {e}"
                 )
-                read_values[name] = None
+                # read_values[name] = None
+
+        # Tambahkan pemeriksaan ini di akhir fungsi
+        if not read_values:
+            logger.warning(f"[{self.machine_name}] No variables were successfully read. Returning None.")
+            return None
+
         return read_values
